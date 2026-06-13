@@ -35,6 +35,23 @@ docker compose up -d api                            # http://localhost:8000/docs
 
 **GitHub Codespaces:** Depoyu Codespace olarak açın (`.devcontainer` Docker'ı sağlar), ardından yukarıdaki komutları terminalde çalıştırın.
 
+## Gerçek LLM üretimi (Aşama 6+)
+
+Bölüm üretimi gerçek **Anthropic Claude** (streaming) ve embedding için **OpenAI/Voyage** kullanır.
+CI testleri bu istemcileri **mock'lar** (gerçek API çağrısı/maliyet yok). Gerçek üretim için `.env`'e
+anahtarları girip worker'ı çalıştırın:
+
+    ANTHROPIC_API_KEY=sk-ant-...
+    OPENAI_API_KEY=sk-...            # EMBEDDING_PROVIDER=openai için
+    CELERY_TASK_ALWAYS_EAGER=false
+
+    docker compose up -d postgres redis minio api worker_gen
+    # POST /api/v1/projects/{id}/chapters/{ch_id}/generate ile üret
+    # ws://localhost:8000/api/v1/ws/projects/{id}?token=... ile ilerlemeyi izle
+
+Anthropic anahtarı yoksa üretim görevi hata verip dead-letter'a düşer; embedding anahtarı yoksa
+semantik hafıza zarifçe devre dışı kalır (order_index fallback'i).
+
 ## Notlar
 
 - Şemanın tek doğruluk kaynağı Alembic'tir; `migration.sql` `scripts/dump_schema.sh` ile üretilir.

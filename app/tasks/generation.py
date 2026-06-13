@@ -12,8 +12,9 @@ from datetime import datetime, timezone
 from celery.exceptions import SoftTimeLimitExceeded
 from sqlalchemy import select
 
+from app.core.config import settings
 from app.db.session import get_sync_db
-from app.models.models import Chapter, ProjectSettings, TaskLog
+from app.models.models import Chapter, Project, ProjectSettings, TaskLog
 from app.services import embedding_service, llm, realtime
 from app.services.versioning import snapshot_chapter
 from app.tasks.celery_app import celery_app
@@ -33,6 +34,50 @@ def _get_or_create_tasklog(db, chapter_id: uuid.UUID, celery_task_id: str) -> Ta
         tlog = TaskLog(chapter_id=chapter_id, celery_task_id=celery_task_id, status="queued")
         db.add(tlog)
     return tlog
+
+
+def _resolve_target_words(chapter: Chapter, project: "Project | None") -> int:
+    if chapter.target_word_count:
+        return chapter.target_word_count
+    if project and project.chapter_count:
+        return max(500, project.target_word_count // max(1, project.chapter_count))
+    return 3000
+
+
+def _get_context_summary(db, chapter: Chapter) -> str:
+    """Önceki ilgili bölümlerin content_summary'lerini toplar (Spec Bölüm 10).
+
+    SEMANTIC_MEMORY_ENABLED + embedding mevcutsa pgvector cosine similarity ile en benzer 3
+    'done' bölüm; aksi halde order_index'e göre önceki 3 'done' bölüm (fallback).
+    """
+    if settings.SEMANTIC_MEMORY_ENABLED:
+        query_vec = embedding_service.embed(f"{chapter.title}\n{chapter.description or ''}")
+        if query_vec is not None:
+            rows = db.execute(
+                select(Chapter.content_summary)
+                .where(
+                    Chapter.project_id == chapter.project_id,
+                    Chapter.id != chapter.id,
+                    Chapter.status == "done",
+                    Chapter.embedding.isnot(None),
+                )
+                .order_by(Chapter.embedding.cosine_distance(query_vec))
+                .limit(3)
+            ).scalars().all()
+            return "\n\n".join(s for s in rows if s)
+
+    rows = db.execute(
+        select(Chapter.content_summary)
+        .where(
+            Chapter.project_id == chapter.project_id,
+            Chapter.status == "done",
+            Chapter.order_index < chapter.order_index,
+            Chapter.content_summary.isnot(None),
+        )
+        .order_by(Chapter.order_index.desc())
+        .limit(3)
+    ).scalars().all()
+    return "\n\n".join(reversed([s for s in rows if s]))
 
 
 @celery_app.task(
@@ -75,16 +120,28 @@ def run_generation(chapter_id: str, celery_task_id: str) -> dict:
         db.commit()
 
         try:
+            project = db.get(Project, chapter.project_id)
             settings_row = db.execute(
                 select(ProjectSettings).where(ProjectSettings.project_id == chapter.project_id)
             ).scalar_one_or_none()
             llm_config = settings_row.llm_config if settings_row else {}
 
-            # 3) bağlam (Aşama 6'da pgvector cosine similarity) — STUB: atlanır
-            # 4) prompt + 5) LLM çağrısı (STUB)
-            content, tokens_in, tokens_out = llm.generate_content(
-                chapter.title, chapter.description, llm_config
+            # 3) bağlam: pgvector semantik benzerlik veya order_index fallback (Bölüm 10)
+            context = _get_context_summary(db, chapter)
+
+            # 4) prompt + 5) Anthropic Claude çağrısı (streaming)
+            prompt = llm.ChapterPrompt(
+                title=chapter.title,
+                description=chapter.description,
+                context=context,
+                tone_profile=settings_row.tone_profile if settings_row else "academic",
+                audience_level=settings_row.audience_level if settings_row else "graduate",
+                human_writing_mode=settings_row.human_writing_mode if settings_row else True,
+                citation_style=project.citation_style if project else "APA",
+                language=project.language if project else "tr",
+                target_word_count=_resolve_target_words(chapter, project),
             )
+            content, tokens_in, tokens_out = llm.generate_content(prompt, llm_config)
 
             # 6) içeriği kaydet ('done' → fn_snapshot_on_done trigger'ı ai_generation versiyonu açar)
             chapter.content = content
@@ -92,8 +149,8 @@ def run_generation(chapter_id: str, celery_task_id: str) -> dict:
             chapter.status = "done"
             chapter.generated_at = datetime.now(timezone.utc)
 
-            # 7) özet + embedding (STUB; embed None → kaydedilmez)
-            chapter.content_summary = llm.generate_summary(content)
+            # 7) özet + embedding (embed None ise kaydedilmez — Bölüm 10)
+            chapter.content_summary = llm.generate_summary(content, llm_config)
             vector = embedding_service.embed(chapter.content_summary)
             if vector is not None:
                 chapter.embedding = vector

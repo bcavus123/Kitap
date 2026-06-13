@@ -105,3 +105,22 @@ def sql_scalar():
             return conn.execute(text(sql), params).scalar()
 
     return _q
+
+
+@pytest.fixture(autouse=True)
+def _mock_llm(monkeypatch):
+    """Testlerde GERÇEK Anthropic/embedding API'si çağrılmaz — deterministik mock.
+    Eager generate_chapter_task bu sahte fonksiyonları kullanır (maliyet/non-determinizm yok)."""
+
+    def fake_content(*args, **kwargs):
+        return ("## Taslak\n\n" + "Akademik içerik cümlesi. " * 40, 150, 300)
+
+    def fake_summary(*args, **kwargs):
+        return "Bu bölümün kısa bağlam özeti."
+
+    def fake_embed(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr("app.services.llm.generate_content", fake_content)
+    monkeypatch.setattr("app.services.llm.generate_summary", fake_summary)
+    monkeypatch.setattr("app.services.embedding_service.embed", fake_embed)
