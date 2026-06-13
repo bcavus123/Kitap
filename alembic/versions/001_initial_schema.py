@@ -15,16 +15,25 @@ branch_labels = None
 depends_on = None
 
 
+def _exec(sql: str) -> None:
+    """Ham SQL'i sürücüye DOĞRUDAN gönderir (SQLAlchemy text() bind-param yorumu YOK).
+
+    JSON default'lardaki ':' (ör. "temperature":0.5 → :0) veya plpgsql ':=' gibi
+    karakterlerin yanlışlıkla bind parametresi sanılmasını önler.
+    """
+    op.get_bind().exec_driver_sql(sql)
+
+
 def upgrade() -> None:
     # ------------------------------------------------------------------ #
     # 0) Extension
     # ------------------------------------------------------------------ #
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+    _exec("CREATE EXTENSION IF NOT EXISTS vector;")
 
     # ------------------------------------------------------------------ #
     # 1) Tablolar
     # ------------------------------------------------------------------ #
-    op.execute(
+    _exec(
         """
         CREATE TABLE users (
             id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -45,7 +54,7 @@ def upgrade() -> None:
         """
     )
 
-    op.execute(
+    _exec(
         """
         CREATE TABLE refresh_tokens (
             id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -60,7 +69,7 @@ def upgrade() -> None:
         """
     )
 
-    op.execute(
+    _exec(
         """
         CREATE TABLE projects (
             id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -81,7 +90,7 @@ def upgrade() -> None:
         """
     )
 
-    op.execute(
+    _exec(
         """
         CREATE TABLE project_settings (
             id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -98,7 +107,7 @@ def upgrade() -> None:
         """
     )
 
-    op.execute(
+    _exec(
         """
         CREATE TABLE chapters (
             id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -120,7 +129,7 @@ def upgrade() -> None:
         """
     )
 
-    op.execute(
+    _exec(
         """
         CREATE TABLE chapter_versions (
             id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -135,7 +144,7 @@ def upgrade() -> None:
         """
     )
 
-    op.execute(
+    _exec(
         """
         CREATE TABLE citations (
             id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -157,7 +166,7 @@ def upgrade() -> None:
         """
     )
 
-    op.execute(
+    _exec(
         """
         CREATE TABLE media_assets (
             id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -176,7 +185,7 @@ def upgrade() -> None:
         """
     )
 
-    op.execute(
+    _exec(
         """
         CREATE TABLE task_logs (
             id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -194,7 +203,7 @@ def upgrade() -> None:
         """
     )
 
-    op.execute(
+    _exec(
         """
         CREATE TABLE export_jobs (
             id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -215,48 +224,48 @@ def upgrade() -> None:
     # ------------------------------------------------------------------ #
     # 2) Indexler (Bölüm 5.2)
     # ------------------------------------------------------------------ #
-    op.execute(
+    _exec(
         """
         CREATE INDEX idx_chapters_embedding_hnsw ON chapters
           USING hnsw (embedding vector_cosine_ops)
           WITH (m = 16, ef_construction = 64);
         """
     )
-    op.execute(
+    _exec(
         """
         CREATE INDEX idx_chapters_status_active ON chapters (status)
           WHERE status NOT IN ('done', 'skipped');
         """
     )
-    op.execute(
+    _exec(
         """
         CREATE INDEX idx_citations_doi ON citations (doi)
           WHERE doi IS NOT NULL;
         """
     )
-    op.execute(
+    _exec(
         """
         CREATE INDEX idx_ej_expired_urls ON export_jobs (url_expires_at)
           WHERE presigned_url IS NOT NULL AND url_expires_at IS NOT NULL;
         """
     )
-    op.execute(
+    _exec(
         """
         CREATE INDEX idx_rt_expired ON refresh_tokens (expires_at)
           WHERE revoked = false;
         """
     )
     # Performans yardımcı indexleri (FK kolonları)
-    op.execute("CREATE INDEX idx_projects_user ON projects (user_id);")
-    op.execute("CREATE INDEX idx_chapters_project ON chapters (project_id);")
-    op.execute("CREATE INDEX idx_citations_chapter ON citations (chapter_id);")
-    op.execute("CREATE INDEX idx_tl_chapter ON task_logs (chapter_id);")
-    op.execute("CREATE INDEX idx_ej_project ON export_jobs (project_id);")
+    _exec("CREATE INDEX idx_projects_user ON projects (user_id);")
+    _exec("CREATE INDEX idx_chapters_project ON chapters (project_id);")
+    _exec("CREATE INDEX idx_citations_chapter ON citations (chapter_id);")
+    _exec("CREATE INDEX idx_tl_chapter ON task_logs (chapter_id);")
+    _exec("CREATE INDEX idx_ej_project ON export_jobs (project_id);")
 
     # ------------------------------------------------------------------ #
     # 3) Trigger fonksiyonları + triggerlar (Bölüm 5.3)
     # ------------------------------------------------------------------ #
-    op.execute(
+    _exec(
         """
         CREATE OR REPLACE FUNCTION fn_update_updated_at() RETURNS trigger AS $$
         BEGIN
@@ -267,7 +276,7 @@ def upgrade() -> None:
         """
     )
     for tbl in ("users", "projects", "project_settings", "chapters"):
-        op.execute(
+        _exec(
             f"""
             CREATE TRIGGER trg_{tbl}_updated_at
               BEFORE UPDATE ON {tbl}
@@ -275,7 +284,7 @@ def upgrade() -> None:
             """
         )
 
-    op.execute(
+    _exec(
         """
         CREATE OR REPLACE FUNCTION fn_sync_project_stats() RETURNS trigger AS $$
         DECLARE
@@ -299,7 +308,7 @@ def upgrade() -> None:
         $$ LANGUAGE plpgsql;
         """
     )
-    op.execute(
+    _exec(
         """
         CREATE TRIGGER trg_chapters_sync_stats
           AFTER INSERT OR DELETE OR UPDATE OF word_count ON chapters
@@ -307,7 +316,7 @@ def upgrade() -> None:
         """
     )
 
-    op.execute(
+    _exec(
         """
         CREATE OR REPLACE FUNCTION fn_auto_version_number() RETURNS trigger AS $$
         BEGIN
@@ -322,7 +331,7 @@ def upgrade() -> None:
         $$ LANGUAGE plpgsql;
         """
     )
-    op.execute(
+    _exec(
         """
         CREATE TRIGGER trg_chversions_auto_number
           BEFORE INSERT ON chapter_versions
@@ -330,7 +339,7 @@ def upgrade() -> None:
         """
     )
 
-    op.execute(
+    _exec(
         """
         CREATE OR REPLACE FUNCTION fn_snapshot_on_done() RETURNS trigger AS $$
         BEGIN
@@ -345,7 +354,7 @@ def upgrade() -> None:
         $$ LANGUAGE plpgsql;
         """
     )
-    op.execute(
+    _exec(
         """
         CREATE TRIGGER trg_chapters_snapshot_on_done
           AFTER UPDATE OF status ON chapters
@@ -356,7 +365,7 @@ def upgrade() -> None:
     # ------------------------------------------------------------------ #
     # 4) View'lar (Bölüm 5.4)
     # ------------------------------------------------------------------ #
-    op.execute(
+    _exec(
         """
         CREATE VIEW v_project_progress AS
         SELECT
@@ -381,7 +390,7 @@ def upgrade() -> None:
         GROUP BY p.id;
         """
     )
-    op.execute(
+    _exec(
         """
         CREATE VIEW v_token_costs AS
         SELECT
@@ -403,19 +412,19 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute("DROP VIEW IF EXISTS v_token_costs;")
-    op.execute("DROP VIEW IF EXISTS v_project_progress;")
+    _exec("DROP VIEW IF EXISTS v_token_costs;")
+    _exec("DROP VIEW IF EXISTS v_project_progress;")
 
-    op.execute("DROP TRIGGER IF EXISTS trg_chapters_snapshot_on_done ON chapters;")
-    op.execute("DROP TRIGGER IF EXISTS trg_chversions_auto_number ON chapter_versions;")
-    op.execute("DROP TRIGGER IF EXISTS trg_chapters_sync_stats ON chapters;")
+    _exec("DROP TRIGGER IF EXISTS trg_chapters_snapshot_on_done ON chapters;")
+    _exec("DROP TRIGGER IF EXISTS trg_chversions_auto_number ON chapter_versions;")
+    _exec("DROP TRIGGER IF EXISTS trg_chapters_sync_stats ON chapters;")
     for tbl in ("users", "projects", "project_settings", "chapters"):
-        op.execute(f"DROP TRIGGER IF EXISTS trg_{tbl}_updated_at ON {tbl};")
+        _exec(f"DROP TRIGGER IF EXISTS trg_{tbl}_updated_at ON {tbl};")
 
-    op.execute("DROP FUNCTION IF EXISTS fn_snapshot_on_done();")
-    op.execute("DROP FUNCTION IF EXISTS fn_auto_version_number();")
-    op.execute("DROP FUNCTION IF EXISTS fn_sync_project_stats();")
-    op.execute("DROP FUNCTION IF EXISTS fn_update_updated_at();")
+    _exec("DROP FUNCTION IF EXISTS fn_snapshot_on_done();")
+    _exec("DROP FUNCTION IF EXISTS fn_auto_version_number();")
+    _exec("DROP FUNCTION IF EXISTS fn_sync_project_stats();")
+    _exec("DROP FUNCTION IF EXISTS fn_update_updated_at();")
 
     for tbl in (
         "export_jobs",
@@ -429,4 +438,4 @@ def downgrade() -> None:
         "refresh_tokens",
         "users",
     ):
-        op.execute(f"DROP TABLE IF EXISTS {tbl} CASCADE;")
+        _exec(f"DROP TABLE IF EXISTS {tbl} CASCADE;")
