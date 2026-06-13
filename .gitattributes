@@ -1,0 +1,4 @@
+# Depoda LF normalize et; .sh dosyaları Linux/WSL'de bozulmasın
+* text=auto eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
