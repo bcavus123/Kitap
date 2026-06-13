@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Sanal ortam
+.venv/
+venv/
+env/
+
+# Ortam değişkenleri (gizli)
+.env
+.env.*
+!.env.example
+
+# Test / cache
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Üretilen şema dökümü (Alembic tek kaynak — Bölüm 5.5)
+migration.sql
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

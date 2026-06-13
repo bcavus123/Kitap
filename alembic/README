@@ -1,0 +1,8 @@
+Alembic migration dizini. Şemanın tek doğruluk kaynağıdır (Spec Bölüm 5.5).
+
+Kullanım:
+  alembic upgrade head       # şemayı uygula
+  alembic downgrade -1       # son migration'ı geri al
+  alembic history            # migration geçmişi
+
+migration.sql elle yazılmaz; scripts/dump_schema.sh ile üretilir.
