@@ -26,6 +26,11 @@ htmlcov/
 # Üretilen şema dökümü (Alembic tek kaynak — Bölüm 5.5)
 migration.sql
 
+# Frontend (Vite) build çıktısı + bağımlılıklar (Codespace/CI'da npm run build üretir)
+/app/web/
+frontend/node_modules/
+frontend/dist/
+
 # IDE / OS
 .idea/
 .vscode/

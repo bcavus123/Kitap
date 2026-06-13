@@ -2,11 +2,12 @@
   "name": "Kitap Yazma",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" }
   },
   "forwardPorts": [8000, 9001, 5555],
   "portsAttributes": {
-    "8000": { "label": "API (Swagger /docs)", "onAutoForward": "notify" },
+    "8000": { "label": "API + Arayüz (/app/)", "onAutoForward": "notify" },
     "9001": { "label": "MinIO Console" },
     "5555": { "label": "Flower" }
   },

@@ -1,5 +1,6 @@
 """FastAPI uygulaması: lifespan, CORS, router kayıtları, sağlık uçları (Spec Bölüm 6.7)."""
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import redis.asyncio as aioredis
 from fastapi import FastAPI, HTTPException, status
@@ -47,13 +48,15 @@ app.include_router(exports.router, prefix=API_V1)
 app.include_router(admin.router, prefix=API_V1)
 app.include_router(ws.router, prefix=API_V1)
 
-# Görsel test arayüzü (statik tek-dosya panel): /app/  (kök / oraya yönlenir)
-app.mount("/app", StaticFiles(directory="app/web", html=True), name="web")
+# Görsel arayüz (React SPA): frontend build edilmişse (app/web) /app/ altında sun.
+# Build yoksa (örn. CI test ortamı) mount atlanır → uygulama import'u bozulmaz.
+_WEB_DIR = Path(__file__).resolve().parent / "web"
+if (_WEB_DIR / "index.html").exists():
+    app.mount("/app", StaticFiles(directory=str(_WEB_DIR), html=True), name="web")
 
-
-@app.get("/", include_in_schema=False)
-async def root() -> RedirectResponse:
-    return RedirectResponse(url="/app/")
+    @app.get("/", include_in_schema=False)
+    async def root() -> RedirectResponse:
+        return RedirectResponse(url="/app/")
 
 
 # ---- Sağlık uçları ----
