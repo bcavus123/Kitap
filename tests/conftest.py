@@ -82,3 +82,14 @@ def set_user_plan():
             )
 
     return _set
+
+
+@pytest.fixture
+def sql_scalar():
+    """Test yardımcı: ham SQL çalıştırıp tek bir değer döndürür (doğrudan DB doğrulaması)."""
+
+    def _q(sql: str, **params):
+        with sync_engine.begin() as conn:
+            return conn.execute(text(sql), params).scalar()
+
+    return _q

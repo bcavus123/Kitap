@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.api.v1.endpoints import auth, projects
+from app.api.v1.endpoints import auth, chapters, projects
 from app.core.config import settings
 from app.db.session import async_engine
 
@@ -38,6 +38,7 @@ app.add_middleware(
 # ---- Router kayıtları ----
 app.include_router(auth.router, prefix=API_V1)
 app.include_router(projects.router, prefix=API_V1)
+app.include_router(chapters.router, prefix=API_V1)
 
 
 # ---- Sağlık uçları ----

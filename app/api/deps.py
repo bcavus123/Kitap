@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import decode_token, hash_api_key
 from app.db.session import get_db
-from app.models.models import User
+from app.models.models import Project, User
 
 
 async def get_current_user(
@@ -55,3 +55,15 @@ async def get_current_admin(current_user: User = Depends(get_current_user)) -> U
             status_code=status.HTTP_403_FORBIDDEN, detail="Yönetici yetkisi gerekli."
         )
     return current_user
+
+
+async def get_owned_project(
+    project_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Project:
+    """Path'teki project_id'yi getirir ve kullanıcının sahipliğini doğrular (404 IDOR koruması)."""
+    project = await db.get(Project, project_id)
+    if project is None or project.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Proje bulunamadı.")
+    return project

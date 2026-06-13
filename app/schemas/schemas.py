@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 # Enum benzeri kısıtlar
 KdpFormat = Literal["5x8", "6x9", "7x10", "8.5x11"]
@@ -171,3 +171,82 @@ class PaginatedResponse(BaseModel, Generic[T]):
     page: int
     page_size: int
     pages: int
+
+
+# ===========================================================================
+# Chapters — İstek
+# ===========================================================================
+class TocItem(BaseModel):
+    order_index: int = Field(ge=1, le=200)
+    title: str = Field(min_length=1, max_length=500)
+    description: str | None = None
+    target_word_count: int | None = Field(default=None, ge=1)
+
+
+class TocImport(BaseModel):
+    chapters: list[TocItem] = Field(min_length=1)
+
+    @field_validator("chapters")
+    @classmethod
+    def _unique_and_sorted(cls, v: list[TocItem]) -> list[TocItem]:
+        indices = [c.order_index for c in v]
+        if len(indices) != len(set(indices)):
+            raise ValueError("order_index değerleri benzersiz olmalı.")
+        return sorted(v, key=lambda c: c.order_index)
+
+
+class ChapterUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=500)
+    description: str | None = None
+    content: str | None = None
+
+
+class GenerateRequest(BaseModel):
+    force: bool = False
+
+
+# ===========================================================================
+# Chapters — Yanıt
+# ===========================================================================
+class ChapterOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    project_id: uuid.UUID
+    order_index: int
+    title: str
+    description: str | None
+    content: str | None
+    content_summary: str | None
+    word_count: int
+    target_word_count: int | None
+    status: str
+    retry_count: int
+    generated_at: datetime | None
+    updated_at: datetime
+
+
+class GenerateResponse(BaseModel):
+    chapter_id: uuid.UUID
+    celery_task_id: str | None
+    status: str
+    message: str
+
+
+class GenerateAllResponse(BaseModel):
+    queued: int
+    message: str
+
+
+class TaskLogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    celery_task_id: str
+    status: str
+    tokens_input: int
+    tokens_output: int
+    duration_ms: int | None
+    error_message: str | None
+    started_at: datetime | None
+    finished_at: datetime | None
