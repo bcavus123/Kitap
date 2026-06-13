@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://redis:6379/0"
     CELERY_BROKER_URL: str = "redis://redis:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://redis:6379/1"
+    CELERY_TASK_ALWAYS_EAGER: bool = False  # test/CI'da True → task'lar broker'sız senkron koşar
 
     # ---- JWT ----
     SECRET_KEY: str = "change-me"

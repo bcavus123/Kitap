@@ -22,6 +22,7 @@ from app.schemas.schemas import (
     TocImport,
 )
 from app.services.versioning import snapshot_chapter
+from app.tasks.generation import generate_chapter_task
 
 router = APIRouter(prefix="/projects/{project_id}/chapters", tags=["chapters"])
 
@@ -32,15 +33,6 @@ async def _get_chapter(db: AsyncSession, project: Project, chapter_id: uuid.UUID
     if chapter is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bölüm bulunamadı.")
     return chapter
-
-
-def _mock_enqueue(db: AsyncSession, chapter: Chapter) -> str:
-    """Aşama 4 mock: sahte celery_task_id üretir, task_log açar, bölümü 'queued' yapar.
-    Aşama 5'te gerçek generate_chapter_task.apply_async ile değişecek."""
-    task_id = uuid.uuid4().hex
-    chapter.status = "queued"
-    db.add(TaskLog(chapter_id=chapter.id, celery_task_id=task_id, status="queued"))
-    return task_id
 
 
 @router.post("/toc", response_model=list[ChapterOut], status_code=status.HTTP_201_CREATED)
@@ -91,11 +83,15 @@ async def generate_all(
         .all()
     )
     for chapter in rows:
-        _mock_enqueue(db, chapter)
+        chapter.status = "queued"
     if rows:
         project.status = "generating"
-    await db.commit()
-    return GenerateAllResponse(queued=len(rows), message=f"{len(rows)} bölüm kuyruğa eklendi (mock).")
+    await db.commit()  # eager modda task'lar bundan SONRA çalışmalı (queued state'i görsün)
+    for chapter in rows:
+        generate_chapter_task.apply_async(
+            args=[str(chapter.id)], queue="generation", countdown=chapter.order_index * 2
+        )
+    return GenerateAllResponse(queued=len(rows), message=f"{len(rows)} bölüm kuyruğa eklendi.")
 
 
 @router.get("", response_model=list[ChapterOut])
@@ -158,14 +154,15 @@ async def generate_chapter(
             status_code=status.HTTP_409_CONFLICT,
             detail="Bölüm zaten tamamlanmış; yeniden üretmek için force=true gönderin.",
         )
-    # force=true ile 'done' yeniden üretiminde regenerate snapshot'ı Celery görevinde alınır (Aşama 5).
-    task_id = _mock_enqueue(db, chapter)
-    await db.commit()
+    # force=true ile 'done' yeniden üretiminde regenerate snapshot'ı Celery görevinde alınır.
+    chapter.status = "queued"
+    await db.commit()  # eager modda task bundan SONRA çalışmalı
+    result = generate_chapter_task.apply_async(args=[str(chapter.id)], queue="generation")
     return GenerateResponse(
         chapter_id=chapter.id,
-        celery_task_id=task_id,
+        celery_task_id=result.id,
         status="queued",
-        message="Bölüm kuyruğa eklendi (mock — Celery Aşama 5).",
+        message="Bölüm kuyruğa eklendi.",
     )
 
 

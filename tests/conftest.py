@@ -8,6 +8,18 @@ NOT: Gerçek bir PostgreSQL (pgvector) gerektirir; kitap_test veritabanına bağ
 """
 import os
 
+# --- App import'undan ÖNCE ortamı sabitle ---
+# Aşama 5: Celery eager (broker'sız senkron) + senkron task DB'si = test veritabanı.
+_TEST_URL = os.environ.get(
+    "TEST_DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/kitap_test"
+)
+os.environ["TEST_DATABASE_URL"] = _TEST_URL
+os.environ["ASYNC_DATABASE_URL"] = _TEST_URL
+os.environ["DATABASE_URL"] = _TEST_URL.replace("+asyncpg", "+psycopg2")
+os.environ.setdefault("CELERY_TASK_ALWAYS_EAGER", "true")
+os.environ.setdefault("SECRET_KEY", "test-secret")
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
+
 import pytest
 import pytest_asyncio
 from alembic import command
