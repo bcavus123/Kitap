@@ -10,6 +10,9 @@ export default function Project() {
   const [exportJobs, setExportJobs] = useState([]);
   const [toc, setToc] = useState("Giriş\nTemel Kavramlar\nYöntem\nBulgular\nSonuç");
   const [viewing, setViewing] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [citations, setCitations] = useState([]);
+  const [mediaAssets, setMediaAssets] = useState([]);
   const [events, setEvents] = useState([]);
   const [exFormat, setExFormat] = useState("docx");
   const [err, setErr] = useState("");
@@ -109,7 +112,30 @@ export default function Project() {
   }
   async function viewChapter(cid) {
     try {
-      setViewing(await api("GET", "/projects/" + id + "/chapters/" + cid));
+      const ch = await api("GET", "/projects/" + id + "/chapters/" + cid);
+      setViewing(ch);
+      // Atıf + media yükle (şu an backend'de liste endpoint'i yok, gelecekte eklenir)
+      // setCitations(await api("GET", "/projects/" + id + "/chapters/" + cid + "/citations"));
+      // setMediaAssets(await api("GET", "/projects/" + id + "/chapters/" + cid + "/media"));
+    } catch (e) {
+      setErr(e.message);
+    }
+  }
+  async function editChapter(ch) {
+    setEditing({ ...ch });
+  }
+  async function saveEdit() {
+    if (!editing) return;
+    setErr("");
+    try {
+      await api("PATCH", "/projects/" + id + "/chapters/" + editing.id, {
+        title: editing.title,
+        description: editing.description,
+        content: editing.content,
+        target_word_count: editing.target_word_count,
+      });
+      await loadChapters();
+      setEditing(null);
     } catch (e) {
       setErr(e.message);
     }
@@ -142,6 +168,9 @@ export default function Project() {
       </Link>
       <h2>
         {project.title} <span className={"pill " + project.status}>{project.status}</span>
+        <Link to={"/projects/" + id + "/settings"} className="btn ghost" style={{ marginLeft: 12, fontSize: 13 }}>
+          Ayarlar
+        </Link>
       </h2>
 
       <div className="grid cols2">
@@ -224,6 +253,9 @@ export default function Project() {
               <button className="btn ghost" onClick={() => viewChapter(c.id)} disabled={!c.content}>
                 Gör
               </button>
+              <button className="btn ghost" onClick={() => editChapter(c)}>
+                Düzenle
+              </button>
               <button className="btn" onClick={() => generate(c.id)}>
                 Üret
               </button>
@@ -244,6 +276,72 @@ export default function Project() {
             </button>
           </h3>
           <div className="content-view">{viewing.content || "(içerik yok)"}</div>
+          {citations.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <h3>Atıflar ({citations.length})</h3>
+              <div className="list">
+                {citations.map((c, i) => (
+                  <div key={i} className="item">
+                    <span className="meta">{c.marker}</span>
+                    <span>{c.raw_title.slice(0, 80)}</span>
+                    <span className={"pill " + c.verification_status}>{c.verification_status}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {mediaAssets.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <h3>Görseller ({mediaAssets.length})</h3>
+              <div className="list">
+                {mediaAssets.map((m) => (
+                  <div key={m.id} className="item">
+                    <span className="meta">{m.asset_type}</span>
+                    <span>{m.description || m.s3_path}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {editing && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <h3>
+            Düzenle: {editing.title}
+            <button className="btn ghost" style={{ float: "right" }} onClick={() => setEditing(null)}>
+              İptal
+            </button>
+          </h3>
+          <label>Başlık</label>
+          <input value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} />
+          <label>Açıklama</label>
+          <input
+            value={editing.description || ""}
+            onChange={(e) => setEditing({ ...editing, description: e.target.value })}
+          />
+          <label>Hedef kelime</label>
+          <input
+            type="number"
+            value={editing.target_word_count || ""}
+            onChange={(e) => setEditing({ ...editing, target_word_count: Number(e.target.value) })}
+          />
+          <label>İçerik (Markdown)</label>
+          <textarea
+            value={editing.content || ""}
+            onChange={(e) => setEditing({ ...editing, content: e.target.value })}
+            style={{ minHeight: 300, fontFamily: "ui-monospace,monospace" }}
+          />
+          {err && <div className="err">{err}</div>}
+          <div style={{ marginTop: 12 }}>
+            <button className="btn" onClick={saveEdit}>
+              Kaydet
+            </button>
+          </div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            Not: İçerik değişirse user_edit versiyonu oluşturulur (backend).
+          </div>
         </div>
       )}
 
