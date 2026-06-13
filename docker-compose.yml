@@ -95,7 +95,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    command: celery -A app.tasks.celery_app.celery_app flower --port=5555
+    command: celery -A app.tasks.celery_app.celery_app flower --port=5555 --basic-auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-admin}
     volumes:
       - .:/app
 

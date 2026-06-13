@@ -124,3 +124,26 @@ def _mock_llm(monkeypatch):
     monkeypatch.setattr("app.services.llm.generate_content", fake_content)
     monkeypatch.setattr("app.services.llm.generate_summary", fake_summary)
     monkeypatch.setattr("app.services.embedding_service.embed", fake_embed)
+    # MinIO/S3 da mock'lanır (CI'da gerçek MinIO yok)
+    monkeypatch.setattr(
+        "app.services.s3_service.upload_bytes",
+        lambda key, data, content_type="application/octet-stream": key,
+    )
+    monkeypatch.setattr(
+        "app.services.s3_service.generate_presigned_url",
+        lambda key, expires_seconds=None: f"http://minio.local/{key}",
+    )
+
+
+@pytest.fixture
+def set_user_role():
+    """Test yardımcı: bir kullanıcının rolünü DB'de günceller (örn. admin)."""
+
+    def _set(email: str, role: str) -> None:
+        with sync_engine.begin() as conn:
+            conn.execute(
+                text("UPDATE users SET role = :role WHERE email = :email"),
+                {"role": role, "email": email},
+            )
+
+    return _set

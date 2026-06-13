@@ -6,8 +6,9 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.api.v1.endpoints import auth, chapters, exports, projects, ws
+from app.api.v1.endpoints import admin, auth, chapters, exports, projects, ws
 from app.core.config import settings
+from app.core.observability import setup_observability
 from app.db.session import async_engine
 
 API_V1 = "/api/v1"
@@ -15,6 +16,7 @@ API_V1 = "/api/v1"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_observability()
     yield
     await async_engine.dispose()
 
@@ -40,6 +42,7 @@ app.include_router(auth.router, prefix=API_V1)
 app.include_router(projects.router, prefix=API_V1)
 app.include_router(chapters.router, prefix=API_V1)
 app.include_router(exports.router, prefix=API_V1)
+app.include_router(admin.router, prefix=API_V1)
 app.include_router(ws.router, prefix=API_V1)
 
 

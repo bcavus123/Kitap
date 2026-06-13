@@ -6,19 +6,25 @@ AŞAMA 8: MinIO yükleme + presigned URL eklenecek (şimdilik s3_path placeholde
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
+from app.core.config import settings
 from app.db.session import get_sync_db
 from app.models.models import Chapter, Citation, ExportJob, Project
-from app.services import formatter, realtime
+from app.services import formatter, realtime, s3_service
 from app.tasks.celery_app import celery_app
 
 _GENERATORS = {
     "docx": formatter.generate_docx,
     "pdf": formatter.generate_pdf,
     "epub": formatter.generate_epub,
+}
+_CONTENT_TYPES = {
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "pdf": "application/pdf",
+    "epub": "application/epub+zip",
 }
 
 
@@ -60,8 +66,14 @@ def export_project_task(self, export_job_id: str):
                 raise ValueError(f"Bilinmeyen format: {job.format}")
             data = generator(project, chapters, citations)
 
-            # TODO Aşama 8: MinIO'ya yükle + presigned_url üret (24 saat)
-            job.s3_path = f"exports/{job.project_id}/{job.id}.{job.format}"
+            # MinIO'ya yükle + presigned URL üret (Spec Bölüm 7.2)
+            key = f"exports/{job.project_id}/{job.id}.{job.format}"
+            s3_service.upload_bytes(key, data, _CONTENT_TYPES.get(job.format, "application/octet-stream"))
+            job.s3_path = key
+            job.presigned_url = s3_service.generate_presigned_url(key)
+            job.url_expires_at = datetime.now(timezone.utc) + timedelta(
+                hours=settings.PRESIGNED_URL_EXPIRE_HOURS
+            )
             job.file_size_bytes = len(data)
             job.status = "done"
             job.finished_at = datetime.now(timezone.utc)
