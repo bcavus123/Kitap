@@ -43,4 +43,10 @@ jobs:
           pip install -r requirements.txt
 
       - name: Testler (20 test)
-        run: pytest -q
+        run: |
+          set -o pipefail
+          pytest -rA --tb=short 2>&1 | tee pytest-output.txt
+
+      - name: Hata teşhisi (annotation — sadece fail'de)
+        if: failure()
+        run: python scripts/ci_annotate.py
