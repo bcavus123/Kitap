@@ -250,3 +250,24 @@ class TaskLogOut(BaseModel):
     error_message: str | None
     started_at: datetime | None
     finished_at: datetime | None
+
+
+# ===========================================================================
+# Exports
+# ===========================================================================
+class ExportRequest(BaseModel):
+    format: Literal["docx", "pdf", "epub"]
+
+
+class ExportJobOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    format: str
+    status: str
+    presigned_url: str | None
+    url_expires_at: datetime | None
+    file_size_bytes: int | None
+    error_message: str | None
+    created_at: datetime
+    finished_at: datetime | None
