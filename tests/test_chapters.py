@@ -84,7 +84,7 @@ async def test_patch_content_creates_version(client, sql_scalar):
 
     count = sql_scalar(
         "SELECT COUNT(*) FROM chapter_versions "
-        "WHERE chapter_id = :cid::uuid AND change_reason = 'user_edit'",
+        "WHERE chapter_id = CAST(:cid AS uuid) AND change_reason = 'user_edit'",
         cid=cid,
     )
     assert count == 1
@@ -97,7 +97,7 @@ async def test_generate_done_without_force(client, sql_scalar):
     cid = chapters[0]["id"]
     # Bölümü doğrudan 'done' yap
     sql_scalar(
-        "UPDATE chapters SET status='done', content='x' WHERE id = :cid::uuid RETURNING 1",
+        "UPDATE chapters SET status='done', content='x' WHERE id = CAST(:cid AS uuid) RETURNING 1",
         cid=cid,
     )
     r = await client.post(_ch(pid, f"/{cid}/generate"), headers=h, json={"force": False})
