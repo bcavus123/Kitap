@@ -56,6 +56,8 @@ def build_prompt(p: ChapterPrompt) -> tuple[str, str]:
         "- Uydurma DOI/atıf ÜRETME; emin değilsen atıfı işaretçisiz bırak.\n"
         "- Tablolar için Markdown tablo söz dizimi kullan.\n"
         "- Görsel önerilerini <!-- GÖRSEL: açıklama --> olarak işaretle.\n"
+        "- Bölümün SONUNDA '## Kaynaklar' başlığı altında, kullandığın HER [n] işaretçisi için\n"
+        "  TEK SATIR kaynak ver: [n] Yazar(lar) (Yıl). Başlık. Dergi. DOI: 10.xxxx/yyyy\n"
         "- Başlığı tekrar etme, doğrudan içeriğe gir."
     )
 

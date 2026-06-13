@@ -113,7 +113,9 @@ def _mock_llm(monkeypatch):
     Eager generate_chapter_task bu sahte fonksiyonları kullanır (maliyet/non-determinizm yok)."""
 
     def fake_content(*args, **kwargs):
-        return ("## Taslak\n\n" + "Akademik içerik cümlesi. " * 40, 150, 300)
+        body = "## Taslak\n\n" + "Akademik içerik cümlesi [1]. " * 40
+        refs = "\n\n## Kaynaklar\n[1] Smith, J. (2020). Test Makalesi. Test Dergisi. DOI: 10.1234/test"
+        return (body + refs, 150, 300)
 
     def fake_summary(*args, **kwargs):
         return "Bu bölümün kısa bağlam özeti."
@@ -133,6 +135,15 @@ def _mock_llm(monkeypatch):
         "app.services.s3_service.generate_presigned_url",
         lambda key, expires_seconds=None: f"http://minio.local/{key}",
     )
+
+    # CrossRef doğrulama mock'lanır (verify_doi gerçek kalır, birim testte test edilir)
+    def fake_verify_citation(db, citation):
+        citation.verification_status = "verified"
+        citation.doi_verified = True
+        db.add(citation)
+        return "verified"
+
+    monkeypatch.setattr("app.services.citation_service.verify_citation", fake_verify_citation)
 
 
 @pytest.fixture

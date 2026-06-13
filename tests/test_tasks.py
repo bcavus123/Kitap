@@ -80,6 +80,24 @@ async def test_generate_creates_ai_version(client, sql_scalar):
     assert count == 1
 
 
+async def test_generate_extracts_citations(client, sql_scalar):
+    """Eager generate, içerikteki kaynakçadan Citation kaydı oluşturup doğrulamalı (Bölüm 9.4)."""
+    h = await _auth(client, "cite@example.com")
+    pid, chapters = await _project_with_toc(client, h)
+    cid = chapters[0]["id"]
+    await client.post(f"{PROJECTS}/{pid}/chapters/{cid}/generate", headers=h, json={"force": False})
+
+    count = sql_scalar(
+        "SELECT COUNT(*) FROM citations WHERE chapter_id = CAST(:cid AS uuid)", cid=cid
+    )
+    assert count == 1
+    status = sql_scalar(
+        "SELECT verification_status FROM citations WHERE chapter_id = CAST(:cid AS uuid) LIMIT 1",
+        cid=cid,
+    )
+    assert status == "verified"
+
+
 def test_ws_requires_token():
     """Token olmadan WS bağlantısı 4401 ile kapatılmalı (Spec Bölüm 6.5)."""
     test_client = TestClient(app)

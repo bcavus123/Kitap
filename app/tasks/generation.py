@@ -14,8 +14,8 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.db.session import get_sync_db
-from app.models.models import Chapter, Project, ProjectSettings, TaskLog
-from app.services import embedding_service, llm, realtime
+from app.models.models import Chapter, Citation, Project, ProjectSettings, TaskLog
+from app.services import citation_service, embedding_service, llm, realtime
 from app.services.versioning import snapshot_chapter
 from app.tasks.celery_app import celery_app
 
@@ -154,6 +154,17 @@ def run_generation(chapter_id: str, celery_task_id: str) -> dict:
             vector = embedding_service.embed(chapter.content_summary)
             if vector is not None:
                 chapter.embedding = vector
+
+            # 7.5) atıfları çıkar, kaydet, CrossRef ile doğrula (Bölüm 9.4)
+            #      (Ölçek için ileride ayrı bir doğrulama görevine taşınabilir.)
+            for citation_data in citation_service.parse_citations(content):
+                citation = Citation(
+                    chapter_id=chapter.id,
+                    citation_format=(project.citation_style if project else "APA"),
+                    **citation_data,
+                )
+                db.add(citation)
+                citation_service.verify_citation(db, citation)
 
             # 8) task_log tamamla
             finished = datetime.now(timezone.utc)

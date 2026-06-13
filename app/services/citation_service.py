@@ -7,9 +7,56 @@ NOT: Testlerde httpx.get mock'lanır; CI gerçek CrossRef çağırmaz.
 """
 from __future__ import annotations
 
+import re
+
 import httpx
 
 CROSSREF_URL = "https://api.crossref.org/works/"
+
+_REF_HEADING_RE = re.compile(
+    r"^#{1,6}\s*(kaynak|kaynakça|kaynaklar|referans|references|bibliyograf)", re.IGNORECASE
+)
+_MARKER_RE = re.compile(r"^\s*\[(\d+)\]\s*(.+?)\s*$")
+_DOI_RE = re.compile(r"10\.\d{4,}/[^\s,)\]]+")
+_YEAR_RE = re.compile(r"\b(19|20)\d{2}\b")
+
+
+def parse_citations(content: str) -> list[dict]:
+    """İçerikten atıf girdilerini ayrıştırır (Spec Bölüm 8.1 kaynakça formatı).
+
+    '## Kaynaklar' başlığı altındaki `[n] Yazar (Yıl). Başlık. Dergi. DOI: ...` satırlarını
+    çıkarır. Başlık yoksa, satır başı `[n]` ile başlayan tüm satırlar taranır.
+    """
+    if not content:
+        return []
+    lines = content.splitlines()
+    start = None
+    for index, line in enumerate(lines):
+        if _REF_HEADING_RE.match(line.strip()):
+            start = index + 1
+            break
+    scan = lines[start:] if start is not None else lines
+
+    results: list[dict] = []
+    for line in scan:
+        match = _MARKER_RE.match(line)
+        if not match:
+            continue
+        marker_num, text = match.group(1), match.group(2)
+        doi_match = _DOI_RE.search(text)
+        year_match = _YEAR_RE.search(text)
+        authors = re.split(r"[.(]", text, maxsplit=1)[0].strip() or None
+        results.append(
+            {
+                "marker": f"[{marker_num}]",
+                "raw_title": text,
+                "authors": authors,
+                "doi": doi_match.group(0) if doi_match else None,
+                "pub_year": int(year_match.group(0)) if year_match else None,
+                "formatted_text": text,
+            }
+        )
+    return results
 
 
 def _norm(text: str) -> str:
