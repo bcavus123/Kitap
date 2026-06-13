@@ -4,6 +4,8 @@ from contextlib import asynccontextmanager
 import redis.asyncio as aioredis
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.api.v1.endpoints import admin, auth, chapters, exports, projects, ws
@@ -44,6 +46,14 @@ app.include_router(chapters.router, prefix=API_V1)
 app.include_router(exports.router, prefix=API_V1)
 app.include_router(admin.router, prefix=API_V1)
 app.include_router(ws.router, prefix=API_V1)
+
+# Görsel test arayüzü (statik tek-dosya panel): /app/  (kök / oraya yönlenir)
+app.mount("/app", StaticFiles(directory="app/web", html=True), name="web")
+
+
+@app.get("/", include_in_schema=False)
+async def root() -> RedirectResponse:
+    return RedirectResponse(url="/app/")
 
 
 # ---- Sağlık uçları ----
